@@ -1,5 +1,20 @@
 from requests.auth import HTTPBasicAuth
 import pysolr
+import csv
+import time
+
+queries = []
+
+with open('C:/Users/ricar/Desktop/Queries.csv', 'r', encoding='utf8') as file:
+    csv_reader = csv.DictReader(file)
+    for row in csv_reader:
+        query = row["solrQuery"].split('_query_:')
+
+        for album_query in query:
+            if 'albumNames' in album_query:
+                queries.append(album_query)
+
+# print(*queries, sep='\n')
 
 uniqueSongs = set()
 uniqueAlbums = set()
@@ -7,35 +22,44 @@ uniqueAlbums = set()
 solrAlbum = pysolr.Solr('http://10.6.0.17:8983/solr/apiAlbum/', auth=HTTPBasicAuth('test', 'zapp123'))
 solrAlbum.ping()
 
-albums = solrAlbum.search(q="_query_:{!dismax mm='-34%' qs='1' qf='albumName' v='Piano Music Volume1' }", **{
-        # 'indent': 'true',
-        # 'sort': 'songId asc',
-        'rows': 10000000,
-        'wt': 'json',
-    })
-
-for line in albums:
-    uniqueAlbums.add(line["songId"])
-
 solrSong = pysolr.Solr('http://10.6.0.17:8983/solr/apiSong/', auth=HTTPBasicAuth('test', 'zapp123'))
 solrSong.ping()
 
-songs = solrSong.search(q="_query_:{!dismax mm='-34%' qs='1' qf='albumNames' v='Piano Music Volume1' }", **{
-        # 'indent': 'true',
-        # 'sort': 'id asc',
-        'fl': 'id',
-        'start': 0,
-        'rows': 10000000,
-        'wt': 'json',
-    })
+with open('C:/Users/ricar/Desktop/Queries OUTPUT.csv', mode='w', encoding='utf8', newline='') as file:
+    writer = csv.writer(file, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
+    writer.writerow(['Query', 'Songs', 'Time Elapsed Songs/s', 'Albums', 'Time Elapsed Albums/s'])
 
-for line in songs:
-    uniqueSongs.add(line["id"])
+    for query in queries:
+        # Songs
+        startSong = time.perf_counter()
+        try:
+            songs = solrSong.search(q=query, **{
+                'fl': 'id',
+                'start': 0,
+                'rows': 13000000,
+                'wt': 'json',
+            })
+        except:
+            print(query)
+        endSong = time.perf_counter()
 
-print('Album: ' + str(len(uniqueAlbums)))
-print('Song: ' + str(len(uniqueSongs)))
+        for line in songs:
+            uniqueSongs.add(line["id"])
 
-uniqueSongs.symmetric_difference_update(uniqueAlbums)
-print('Difference: ' + str(len(uniqueSongs)) + '\n')
+        # Albums
+        query = query.replace('albumNames', 'albumName')
+        startAlbum = time.perf_counter()
+        try:
+            albums = solrAlbum.search(q=query, **{
+                'rows': 10000000,
+                'wt': 'json',
+            })
+        except:
+            print(query)
+        endAlbum = time.perf_counter()
 
-print(uniqueSongs)
+        for line in albums:
+            uniqueAlbums.add(line["songId"])
+
+        writer.writerow([query, len(uniqueSongs), f"{endSong - startSong:0.4f}", len(uniqueAlbums),
+                         f"{(endAlbum - startAlbum):0.4f}"])
