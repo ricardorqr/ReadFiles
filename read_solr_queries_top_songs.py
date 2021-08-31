@@ -23,10 +23,10 @@ class SongUsage:
 if __name__ == '__main__':
     csv_data = pandas.read_csv('C:/Users/ricar/Desktop/Top Songs.csv')
 
-    topSongs = []
+    topSongs = {}
 
     for index, row in csv_data.iterrows():
-        topSongs.append(row[0])
+        topSongs[row[0]] = row[1] + ' - ' + row[2]
 
     solrAlbum = pysolr.Solr('http://63.247.64.138:8983/solr/searchUsageAnalytics/',
                             auth=HTTPBasicAuth('production', 'jTF4JPzVFDjFGmPhkfTNMK6W79vdFzat'))
@@ -52,7 +52,7 @@ if __name__ == '__main__':
         song_id = line['catalog_song_id']
         usage_count = line['usage_count']
 
-        if song_id in topSongs:
+        if song_id in topSongs.keys():
             if song_id in songs:
                 clients = songs.get(song_id)
 
@@ -77,7 +77,7 @@ if __name__ == '__main__':
                 songs[song_id] = clients
 
     print('Songs:', "{:,}".format(len(songs)))
-    print(topSongs)
+    print('Top Songs:', "{:,}".format(len(topSongs)))
     # print(set(list(songs.keys())) == set(top500Songs))
     # print(collections.Counter(list(songs.keys())) == collections.Counter(top500Songs))
 
